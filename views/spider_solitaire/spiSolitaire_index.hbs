@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>蜘蛛纸牌-download by http://www.codefans.net</title>
+    <script type="text/javascript" src="/js/spiderSolitaire/jquery-1.8.0.min.js"></script>
+    <style type="text/css">
+        body { -moz-user-select: none; -webkit-user-select: none; }
+        body, div, span, a, cite, input { font-size: 14px; font-family: "Arial", "宋体"; }
+        body { padding: 10px; background-color: #eee; }
+        #main { position: relative; width: 1200px; height: 600px; margin: 0px auto; border: 2px solid #33ee99; background: #333 url(/imgs/spiderSolitaire/bg2.jpg) no-repeat center; }
+        #bar { position: absolute; bottom: 0px; width: 100%; height: 35px; border-top: 1px solid #33cc99; background-color: rgba(255, 255, 255, .4); }
+        #bar span { display: inline-block; width: 80px; line-height: 35px; margin-left: 10px; float:right; }
+        #bar cite { color: #ff3300; }
+        #bar input { width: 85px; height: 35px; color: #006600; float: left; }
+        .poker { position: absolute; width: 105px; height: 148px; border-radius: 4px; background: url(/imgs/spiderSolitaire/poker.png) no-repeat; cursor: default; }
+        .poker:hover { box-shadow: 0px 0px 5px #0033cc; }
+        .poker.fixed:hover { box-shadow: none; }
+        .drag_box { position: absolute; width: 105px; left: 0px; top: 0px; }
+
+        #pop { position: absolute; width: 100%; height: 100%; background-color: rgba(255, 255, 255, 0); z-index: 9999; display: none; }
+        .win { width: 400px; height: 160px; margin: 150px auto; border: 3px solid #669933; border-radius: 10px; background: -moz-linear-gradient(top, rgba(255, 204, 0, 0.5), rgba(255, 255, 255, 0.5)); background: -webkit-gradient(linear, 0 0, 0 100%, from(rgba(255, 255, 255, 0.5)), to(rgba(255, 204, 0, 0.5))); box-shadow: 0px 0px 50px rgba(0, 0, 0, 0.75); text-align: center; }
+        .win p { font-size: 36px; font-family: "微软雅黑"; color: #339900; text-align: center; margin-bottom: 16px; }
+        .win input { width: 100px; height: 35px; color: #006600; }
+
+        #copyright { text-align: center; line-height: 200%; color: #666666; }
+    </style>
+    <script type="text/javascript">
+        function Spider(o) {
+            this.cntr = $("#main");
+            this.scoreElem = $("#score");
+            this.stepElem = $("#step");
+            this.paddingTop = 10;
+            this.init();
+        }
+        Spider.prototype = {
+            init: function() {
+                var S = this;
+                S.score = 500;
+                S.step = 0;
+                S.closeCollection = [];		//未发牌队列
+                S.openCollection = [[],[],[],[],[],[],[],[],[],[]];		//已发牌队列,共10组
+                S.doneCollection = [];		//已收牌队列
+                S.readyCollection = [];		//牌堆
+                S.historyQueue = [];
+                S.distanceArr = [20, 20, 20, 20, 20, 20, 20, 20, 20, 20];		//牌纵向间距，每队记录一个当前值
+
+                var i,j,_poker;
+                //创建52*2张牌
+                for(i=0; i<4; i++)
+                {
+                    for(j=0; j<13; j++)
+                    {
+                        var _mode = {};
+                        _mode.pos = -1;
+                        _mode.style = i;
+                        _mode.num = j;
+                        S.closeCollection.push(_mode);
+                        //2副牌
+                        var _mode2 = {};
+                        _mode2.pos = -1;
+                        _mode2.style = i;
+                        _mode2.num = j;
+                        S.closeCollection.push(_mode2);
+                    }
+                }
+
+                //洗牌
+                var tempArr = [];
+                for(i=0,j=S.closeCollection.length; i<j; i++)
+                {
+                    var len = S.closeCollection.length;
+                    var index = Math.floor(Math.random()*len);
+                    var _poker = S.closeCollection.splice(index, 1)[0];
+                    tempArr.push(_poker);
+                }
+                S.closeCollection = tempArr;
+                tempArr = [];
+                var index = Math.floor(Math.random()*S.closeCollection.length-1/2) + 1;
+                tempArr = S.closeCollection.splice(index, S.closeCollection.length/3);
+                S.closeCollection = S.closeCollection.concat(tempArr);
+
+                //创建占位符(共10个)
+                for(i=0; i<10; i++)
+                {
+                    _poker = new Poker(S, {"pos": i+1, "style": 4, "num": 3});
+                    this.openCollection[i].push(_poker);
+                }
+
+                //创建牌堆(共5个)
+                for(i=0; i<5; i++)
+                {
+                    _poker = new Poker(S, {"pos": 0, "style": 4, "num": 0});
+                    _poker.offset((4-i)*10, 0);
+                    _poker.elem.css("z-index", 900+i);
+                    S.readyCollection.push(_poker);
+                }
+            },
+            start: function() {
+                var S = this;
+                S.record();
+                //发牌
+                var _delay = 0;
+                for(var i=0; i<6; i++)
+                {
+                    for(var j=0; j<10; j++)
+                    {
+                        //从第6行第5列停止发牌
+                        if(i==5&&j==4)
+                        {
+                            break;
+                        }
+                        //从5行第5列明牌显示，其他则为暗牌；
+                        var _mode = S.closeCollection.shift();
+                        var _poker;
+                        var _pos = j+1;
+                        _mode.pos = _pos;
+                        if((i==4&&j>=4)||i==5)
+                        {
+                            _poker = new Poker(S, _mode);
+                        }
+                        else
+                        {
+                            _poker = new Poker(S, {"pos": _pos, "style": 4, "num": 0});
+                        }
+                        var _offset = _poker.offset(0, 10*i);
+                        _poker.elem.css({"left": "990px", "top": "390px"});
+                        //发牌动画
+                        _poker.moveTo(_offset.left, _offset.top, _delay);
+
+                        S.openCollection[j].push(_poker);
+                        _poker.mode = _mode;
+                        _delay += 60;
+                    }
+                }
+                setTimeout(function() {
+                    var _poker = S.readyCollection[S.readyCollection.length-1];
+                    _poker.enable();
+                }, _delay);
+            },
+            //检测是否连贯
+            continuous: function(poker, group) {
+                var _group = group || this.openCollection[poker.mode.pos-1];
+                var i = _group.length-1;
+                do {
+                    var _poker1 = _group[i];
+                    if(poker&&_poker1==poker)
+                    {
+                        return true;
+                    }
+                    var _poker2 = _group[i-1];
+                    if(_poker1.mode.style!=_poker2.mode.style||_poker1.mode.num!=_poker2.mode.num-1)
+                    {
+                        return false;
+                    }
+                    if(!poker&&_poker2.mode.num==12)
+                    {
+                        return i-1;
+                    }
+                    i--;
+                }while(i>0);
+                return false;
+            },
+            //发牌
+            dealing: function(P) {
+                var S = this;
+                if(P.elem.is(".fixed"))
+                {
+                    return;
+                }
+                var _delay = 0;
+                for(var i=0; i<10; i++)
+                {
+                    var _mode = S.closeCollection.shift();
+                    _mode.pos = i+1;
+                    var j = S.openCollection[i].length;
+                    //获取当前队列最后一张牌的纵坐标，新牌的纵坐标在此基础上+20px
+                    var _lastPoker = S.openCollection[i][j-1];
+                    var _offset = _lastPoker.soliOffset();
+                    _poker = new Poker(S, _mode);
+                    _poker.elem.css({"left": "990px", "top": "390px"});
+                    //发牌动画
+                    _poker.moveTo(_offset.left, _offset.top, _delay);
+                    _delay += 60;
+                    S.openCollection[i][j] = _poker;
+                }
+                setTimeout(function() {
+                    var _delPoker = S.readyCollection.pop();
+                    _delPoker.elem.remove();
+                    _delPoker = null;
+                    if(S.readyCollection.length>0)
+                    {
+                        var _poker = S.readyCollection[S.readyCollection.length-1];
+                        _poker.enable();
+                    }
+                }, _delay);
+                S.historyQueue.push("dealing");		//添加历史记录——“dealing"
+            },
+            //记录分数和移动步数
+            record: function() {
+                this.scoreElem.html(this.score);
+                this.stepElem.html(this.step);
+            },
+            //收牌
+            folding: function(pos) {
+                var S = this;
+                var _group = S.openCollection[pos];
+                var i = _group.length-1;
+                var _poker = _group[i];
+                if(_poker.mode.num!=0)
+                {
+                    return;
+                }
+                var index = S.continuous(null, _group);
+                if(!index)
+                {
+                    return;
+                }
+                var _x = 50 + S.doneCollection.length*110;
+                var _y = 390;
+                var _delay = 0;
+                for(; i>=index; i--)
+                {
+                    _poker = _group[i];
+                    _poker.elem.css("z-index", 900-i);
+                    _poker.disable();
+                    _poker.mode.pos = 11;
+                    _poker.moveTo(_x, _y, _delay);
+                    _delay += 5;
+                }
+                S.doneCollection.push(_group.splice(index));
+                _poker = _group[index-1];
+                if(_poker.elem.is(".fixed"))
+                {
+                    setTimeout(function() {
+                        _poker.expose();
+                    }, _delay);
+                }
+                S.score += 101;
+                S.record();
+                S.historyQueue[S.historyQueue.length-1].unshift({"pos": pos+1, "poker": "folding", "fixed": false});
+                if(S.doneCollection.length==8)
+                {
+                    S.win();
+                }
+            },
+            //调整间距
+            adjustDistance: function(pos) {
+                var S = this;
+                var distance = 20;
+                var _group = S.openCollection[pos];
+                if(_group.length<3)
+                {
+                    return;
+                }
+                if(_group.length>18)
+                {
+                    distance = 360/(_group.length-5);
+                    S.distanceArr[pos] = distance;
+                }
+                else
+                {
+                    distance = 30;
+                    S.distanceArr[pos] = 20;
+                }
+                var _y = S.paddingTop;
+                for(var i=1; i<_group.length; i++)
+                {
+                    var _poker = _group[i];
+                    if(_poker.elem.is(".fixed"))
+                    {
+                        _y += 10;
+                    }
+                    else
+                    {
+                        _poker.elem.css("top", _y + "px");
+                        _y += distance;
+                    }
+                }
+            },
+            //回退
+            undo: function(S) {
+                var len = S.historyQueue.length;
+                if(len==0)
+                {
+                    return;
+                }
+                var historyArr = S.historyQueue.pop();
+                var i, _poker;
+                //发牌历史---->直接将所有已发牌队列的最后一张牌移除，并恢复待发牌
+                if(historyArr==="dealing")
+                {
+                    for(i=9; i>=0; i--)
+                    {
+                        _poker = S.openCollection[i].pop();
+                        var _mode = _poker.mode;
+                        _mode.pos = -1;
+                        S.closeCollection.unshift(_mode);
+                        _poker.elem.remove();
+                        S.adjustDistance(i);
+                    }
+                    _poker = new Poker(S, {"pos": 0, "style": 4, "num": 0});
+                    _poker.offset((4-S.readyCollection.length)*10, 0);
+                    _poker.elem.css("z-index", 900+S.closeCollection.length);
+                    S.readyCollection.push(_poker);
+                    _poker.enable();
+                    if(S.readyCollection[S.readyCollection.length-2])
+                    {
+                        S.readyCollection[S.readyCollection.length-2].disable();
+                    }
+                }
+                else
+                {
+                    for(i=0; i<historyArr.length; i++)
+                    {
+                        var _hy = historyArr[i];
+                        //检测翻牌历史，如果有，则将重新让翻转至背面
+                        if(_hy.fixed==true)
+                        {
+                            _poker = _hy.poker;
+                            if(_poker.mode.style!=4||_poker.mode.num!=3)
+                            {
+                                _poker.elem.css("background-position", "0px "+(-148*4)+"px");
+                                _poker.disable();
+                            }
+                        }
+                        //检测收牌历史，如果有，则将收起的牌移回原队列
+                        else if(_hy.poker=="folding")
+                        {
+                            var _group = S.doneCollection[S.doneCollection.length-1];
+                            var prevCollection = S.openCollection[_hy.pos-1];
+                            var _lastPoker = prevCollection[prevCollection.length-1];
+                            var _offset = _lastPoker.soliOffset();
+                            var _toX = _offset.left;
+                            var _toY = _offset.top;
+                            for(var j=0; j<_group.length; j++)
+                            {
+                                _poker = _group[j];
+                                _poker.elem.css({
+                                    "left": _toX + "px",
+                                    "top": _toY + "px",
+                                    "z-index": ""
+                                });
+                                _poker.enable();
+                                _toY += S.distanceArr[_hy.pos-1];
+                                _poker.elem.appendTo(S.cntr);
+                                _poker.mode.pos = _hy.pos;
+                                prevCollection.push(_poker);
+                            }
+                            S.doneCollection.pop();
+                            S.adjustDistance(_hy.pos-1);
+                        }
+                        //移牌历史处理
+                        else
+                        {
+                            _poker = _hy.poker;
+                            var prevCollection = S.openCollection[_hy.pos-1];
+                            var _lastPoker = prevCollection[prevCollection.length-1];
+                            var _offset = _lastPoker.soliOffset();
+                            _poker.elem.css({
+                                "left": _offset.left + "px",
+                                "top": _offset.top + "px"
+                            });
+                            _poker.elem.appendTo(S.cntr);
+                            prevCollection.push(_poker);
+                            S.openCollection[_poker.mode.pos-1].pop();
+                            S.adjustDistance(_poker.mode.pos-1);
+                            S.adjustDistance(_hy.pos-1);
+                            _poker.mode.pos = _hy.pos;
+                        }
+                    }
+                }
+            },
+            //重新开始
+            replay: function() {
+                var S = this;
+                $("#pop").hide();
+                $(".poker").remove();
+                S.init();
+                S.start();
+            },
+            win: function() {
+                $("#pop").delay(200).fadeIn();
+            }
+        };
+        function Poker(S, mode) {
+            this.S = S;
+            this.elem = null;
+            this.width = 105;
+            this.height = 148;
+            //pos  		所在位置   	0:预备位  1-10:游戏位置  11:已消除位置   -1:未初始化
+            //style		花色	   	0:黑桃  1:红桃  2:梅花  3:方块  4:背面或占位符
+            //num		牌大小		0-12  花色为4时:0表示背面;3表示占位符。花色为0-3时:表示A2345678910JQK
+            this.mode = mode || {"pos": 0, "style": 4, "num": 0};
+            this.init();
+        }
+        Poker.prototype = {
+            init: function() {
+                this.render();
+                if(this.mode.style==4)
+                {
+                    this.disable();
+                }
+                this.listener();
+            },
+            render: function() {
+                var P = this;
+                var S = P.S;
+                P.elem = $("<div class='poker'></div>");
+                var _css = {};
+                _css["background-position"] = (-(P.width*P.mode.num))+"px "+(-(P.height*P.mode.style))+"px";
+                if(P.mode.pos==0)
+                {
+                    _css["left"] = "950px";
+                    _css["top"] = "390px";
+                }
+                else
+                {
+                    _css["left"] = (50 + 110*P.mode.pos-110) + "px";
+                    _css["top"] = S.paddingTop + "px";
+                }
+                P.elem.css(_css);
+                S.cntr.append(P.elem);
+            },
+            moveTo: function(x, y, delay) {
+                var P = this;
+                P.elem.delay(delay).animate({"left": x+"px", "top": y+"px"}, "fast");
+            },
+            offset: function(left, top) {
+                left = left || 0;
+                top = top || 0;
+                var _left = parseInt(this.elem.css("left"));
+                var _top = parseInt(this.elem.css("top"));
+                this.elem.css({
+                    "left": (_left + left) + "px",
+                    "top": (_top + top) + "px"
+                });
+                return {"left": _left+left, "top": _top+top};
+            },
+            soliOffset: function() {
+                var P = this;
+                var S = P.S;
+                var _pos = P.mode.pos - 1;
+                var _offset = P.offset();
+                if(P.elem.is(".fixed"))
+                {
+                    _toY = _offset.top + 10;
+                    if(P.mode.style==4&&P.mode.num==3)
+                    {
+                        _toY = _offset.top;
+                    }
+                }
+                else
+                {
+                    _toY = S.paddingTop + _offset.top + S.distanceArr[_pos];
+                }
+                return {
+                    "left": _offset.left,
+                    "top": _toY
+                };
+            },
+            disable: function() {
+                this.elem.addClass("fixed");
+            },
+            enable: function() {
+                this.elem.removeClass("fixed");
+            },
+            //翻牌
+            expose: function() {
+                var P = this;
+                var S = P.S;
+                if(P.mode.style==4&&P.mode.num==3)
+                {
+                    return;
+                }
+                P.enable();
+                P.elem.css("background-position", (-(P.width*P.mode.num))+"px "+(-(P.height*P.mode.style))+"px");
+                P.listener();
+                S.historyQueue[S.historyQueue.length-1].unshift({"pos": P.mode.pos, "poker": P, "fixed": true});
+            },
+            //事件侦听
+            listener: function() {
+                var P = this;
+                var S = P.S;
+                P.elem.unbind("click").unbind("mousedown");
+                if(P.mode.pos==0)
+                {
+                    P.elem.bind("click", function() {
+                        S.dealing(P);
+                    });
+                }
+                else if(P.mode.style!=4)
+                {
+                    P.elem.bind("mousedown", function(event) {
+                        if(P.elem.is(".fixed"))
+                        {
+                            return;
+                        }
+                        P.dragStart(P, event);
+                    });
+                }
+            },
+            dragStart: function(P, event) {
+                var S = P.S;
+                if(S.moving===true)
+                {
+                    return;
+                }
+                if(!S.continuous(P))
+                {
+                    return;
+                }
+                S.moving = true;
+                $(document).bind("mouseup.drag", function() {
+                    P.dragEnd(P);
+                });
+                $(document).bind("mousemove.drag", function(event) {
+                    P.draging(event, P);
+                });
+                //创建存放拖动牌元素的容器
+                S.dragBox = $("<div class='drag_box'></div>").appendTo(S.cntr);
+                var _css = {};
+                _css["left"] = parseInt(P.elem.css("left"));
+                _css["top"] = parseInt(P.elem.css("top"));
+                _css["z-index"] = 999;
+                var _pos = P.mode.pos - 1;
+                //找出点击牌所在队列
+                var _group = S.openCollection[_pos];
+                var _index = 99999;
+                for(var i=0; i<_group.length; i++)
+                {
+                    var _poker = _group[i];
+                    var _top = parseInt(_poker.elem.css("top"));
+                    if(_poker==P)
+                    {
+                        _index = i;
+                    }
+                    //将点击牌以及所在队列的后续牌元素放到dragBox中
+                    if(i>=_index)
+                    {
+                        _poker.elem.css({"top": (_top-_css["top"])+"px", "left": "0px"});
+                        S.dragBox.append(_poker.elem);
+                    }
+                }
+                //将点击牌及所在队列的后续牌暂存到一个临时数组中
+                S.dragCollection = _group.splice(_index);
+                //记住点击牌所在队列的上一张牌
+                S.soliPoker = _group[_index-1];
+                //让存击拖动牌的窗口错位1*1px，以便用户感觉到鼠标已按下
+                _css["left"] += 1;
+                _css["top"] += 1;
+                _css["left"] = _css["left"] + "px";
+                _css["top"] = _css["top"] + "px";
+                S.dragBox.css(_css);
+                S.startX = event.pageX;
+                S.startY = event.pageY;
+                S.adjustDistance(_pos);
+            },
+            draging: function(event, P) {
+                var S = P.S;
+                var _moveX = event.pageX - S.startX;
+                var _moveY = event.pageY - S.startY;
+                var _left = parseInt(S.dragBox.css("left"));
+                var _top = parseInt(S.dragBox.css("top"));
+                S.dragBox.css({
+                    "left": (_left + _moveX) + "px",
+                    "top": (_top + _moveY) + "px"
+                });
+                S.startX = event.pageX;
+                S.startY = event.pageY;
+            },
+            dragEnd: function(P) {
+                var S = P.S;
+                var _left = parseInt(S.dragBox.css("left"));
+                var _top = parseInt(S.dragBox.css("top"));
+                var _soliPoker, _poker;
+                //根据x,y定位接龙位置
+                for(var i=0; i<10; i++)
+                {
+                    _poker = S.openCollection[i][S.openCollection[i].length-1];
+                    var _offset = _poker.offset();
+                    if(_left>_offset.left-50&&_left<_offset.left+105&&_top>_offset.top-50&&_top<_offset.top+105)
+                    {
+                        if((_poker.mode.style==4&&_poker.mode.num==3)||_poker.mode.num==(P.mode.num+1))
+                        {
+                            _soliPoker = _poker;
+                        }
+                    }
+                }
+                _soliPoker = _soliPoker || S.soliPoker;
+
+                var _pos = _soliPoker.mode.pos;
+                var _soliOffset = _soliPoker.soliOffset();
+                var _toX = _soliOffset.left;
+                var _toY = _soliOffset.top;
+                S.dragBox.animate({"left": _toX+"px", "top": _toY+"px"}, "fast", null, function() {
+                    var historyArr = [];	//历史记录
+                    S.moving = false;
+                    for(var i=0; i<S.dragCollection.length; i++)
+                    {
+                        _poker = S.dragCollection[i];
+                        historyArr.push({"pos": _poker.mode.pos, "poker": _poker, "fixed": false});
+                        _poker.offset(_toX, _toY);
+                        _poker.mode.pos = _pos;
+                        S.cntr.append(_poker.elem);
+                        S.openCollection[_pos-1].push(_poker);
+                    }
+                    //记分
+                    if(_soliPoker!=S.soliPoker)
+                    {
+                        S.score -= 1;
+                        S.step += 1;
+                        S.record();
+                        S.historyQueue.push(historyArr);
+                        //翻牌
+                        if(S.soliPoker.elem.is(".fixed"))
+                        {
+                            S.soliPoker.expose();
+                        }
+                    }
+                    S.dragBox.remove();
+                    S.dragCollection = [];
+                    S.folding(_pos-1);
+                    S.adjustDistance(_pos-1);
+                });
+                $(document).unbind("mouseup.drag");
+                $(document).bind("mousemove.drag");
+            }
+        };
+        $(function() {
+            window.s = new Spider();
+            $("#playBtn").bind("click", function() {
+                if(this.value==="开始")
+                {
+                    s.start();
+                    this.value = "重新开始";
+                }
+                else
+                {
+                    s.replay();
+                }
+            });
+            $("#undoBtn").bind("click", function() {
+                s.undo(s);
+            });
+            $("#replayBtn").bind("click", function() {
+                s.replay();
+            });
+        });
+    </script>
+</head>
+<body>
+<div id="main">
+    <div id="bar">
+        <span>移牌：<cite id="step">0</cite></span>
+        <span>得分：<cite id="score">0</cite></span>
+        <input id="playBtn" type="button" value="开始" />
+        <input id="undoBtn" type="button" value="后退" />
+    </div>
+    <div id="pop">
+        <div class="win">
+            <p>恭喜您赢了！</p>
+            <input id="replayBtn" type="button" value="再来一盘" />
+        </div>
+    </div>
+</div>
+</body>
+</html>

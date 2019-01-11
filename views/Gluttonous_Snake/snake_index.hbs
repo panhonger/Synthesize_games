@@ -1,0 +1,252 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head runat="server">
+    <meta charset="utf-8"></meta>
+    <title></title>
+    <style type="text/css">
+        .tb
+        {
+            font-size: 9px;
+        }
+        td{background-color:Silver;}
+    </style>
+</head>
+<body>
+<div id="context">
+</div>
+<div id="test" style="font-size: 12px;">
+</div>
+</body>
+<script type="text/javascript">
+
+    var Time = 350, sco = 100, FlagTemp = "", v = "", playInterval;
+    var score = 0;//得分
+    var Snake = new Array();
+    var MoveFlag = ""; //定义行走方向，为空表示不行走
+
+    createTable();//初始化表格
+    createfood(); //初始化一个食物
+    createsnakehead(); //初始化一个蛇头
+
+    //初始化表格
+    function createTable() {
+        //v = "13".charCodeAt(); //字符串转ascii
+        //fromCharCode(13);//ascii转字符串
+        var tableText = "<table border='0' bgcolor='#CEE0F9' cellpadding='0' cellspacing='1' align='center' class='tb'>";
+        for (var i = 10; i < 34; i++) {
+            tableText += "<td height='10px' width='10px' bgcolor='white' align='center'>" + i+ "</td>";
+        }
+        for (var i = 10; i < 34; i++) {
+            tableText += "<tr><td height='10px' width='10px' bgcolor='white' align='center'>" + i + "</td>";
+            for (var j = 10; j < 34; j++) {
+                tableText += "<td height='10px' width='10px' bgcolor='white' id='bg" + i + j + "'></td>";
+            }
+            tableText += "</tr>";
+        }
+        tableText += "<tr><td align='center' colspan='25' style='font-size:12px;' valign='middle'>请选择难度:<select  name='level' onChange='setlevel();'>" +
+                "<option value='400'>一般</option>" +
+                "<option value='250'>中等</option>" +
+                "<option value='150'>疯狂</option></select>";
+        tableText += "(上：W 下：S 左：A 右：D)  |  (↑ ↓ ← →)</td></tr><tr><td colspan='25' align='center'><input type='button' value='开始' onClick='javascript:play();' name='playnow'></td></tr></table>";
+        document.getElementById('context').innerHTML = tableText;
+    }
+
+    //定义蛇的结点
+    function snakecell(fx, fy)
+    {
+        var snakecell = new Object();
+        snakecell.cellx = fx;//结点的横坐标
+        snakecell.celly = fy;//结点的纵坐标
+        return snakecell;
+    }
+
+    //随机生成小于25大于9的整数
+    function createpoint()
+    {
+        var suc = false;
+        while (!suc) {
+            var number = Math.floor(Math.random() * 35);
+            if (number > 9)
+                suc = true;
+        }
+        return number;
+    }
+
+    //检测食物是否与snake的位置重叠并且坐标有效
+    function checkfood(foodx, foody)
+    {
+        if (foodx < 10 || foodx > 34 || foody < 10 || foody > 34)    //如果超出边界
+            return false;
+        else {
+            for (var i = 0; i < Snake.length; i++) {
+                if (foodx == Snake[i].cellx && foody == Snake[i].celly)    //如果坐标值与某个元素的坐标值一致
+                    return false;
+            }
+            return true;
+        }
+    }
+
+    //随机生成食物，以蓝色显示
+    function createfood()
+    {
+        var i = -1;
+        var j = -1;
+        while (!checkfood(i, j)) {
+            i = createpoint();
+            j = createpoint();
+        }
+        document.getElementById("bg" + i + j).style.backgroundColor = "blue";
+    }
+
+    //创建蛇
+    function createsnakehead()
+    {
+        Snake[0] = snakecell();
+        Snake[0].cellx = createpoint();
+        Snake[0].celly = createpoint();
+        showsnake();
+    }
+
+    //控制这条蛇
+    function ManageSnake()
+    {
+        if (MoveFlag == "")//如果标志为空表示暂停
+            return;
+        if (MoveFlag == "up")//向上移
+        {
+            if (Snake[0].cellx == 10)
+                MoveSnake(34, Snake[0].celly % 35);
+            else
+                MoveSnake((Snake[0].cellx - 1) % 35, Snake[0].celly % 35);
+        }
+        if (MoveFlag == "down") {
+            if (Snake[0].cellx == 34)
+                MoveSnake(10, Snake[0].celly % 35);
+            else
+                MoveSnake((Snake[0].cellx + 1) % 35, Snake[0].celly % 35);
+        }
+        if (MoveFlag == "left") {
+            if (Snake[0].celly == 10)
+                MoveSnake((Snake[0].cellx) % 35, 34);
+            else
+                MoveSnake((Snake[0].cellx) % 35, (Snake[0].celly - 1) % 35);
+        }
+        if (MoveFlag == "right") {
+            if (Snake[0].celly == 34)
+                MoveSnake((Snake[0].cellx) % 35, 10);
+            else
+                MoveSnake((Snake[0].cellx) % 35, (Snake[0].celly + 1) % 35);
+        }
+        showsnake();
+    }
+
+    function MoveSnake(hx, hy)//移动这条蛇
+    {
+        var headx = hx;
+        var heady = hy;
+        var endx = Snake[Snake.length - 1].cellx;
+        var endy = Snake[Snake.length - 1].celly;
+
+        if (document.getElementById("bg" + headx + heady) == null
+                || document.getElementById("bg" + headx + heady) == "null"
+                || document.getElementById("bg" + headx + heady) == undefined
+                || document.getElementById("bg" + headx + heady) == "undefined") {//碰到边线 挂掉，退出。
+
+            clearInterval(playInterval);
+
+            alert("本轮结束，得分为:" + score);
+            location.reload();
+            return;
+        }
+        if (document.getElementById("bg" + headx + heady).style.backgroundColor == "blue")//如果是食物
+        {
+            for (var step = Snake.length - 1; step > 0; step--)//从第二个蛇结点起把前一结点的x，y坐标赋给自身
+            {
+                Snake[step].cellx = Snake[step - 1].cellx;
+                Snake[step].celly = Snake[step - 1].celly;
+            }
+
+            Snake[0].cellx = headx;//将蛇头位置探前一步
+            Snake[0].celly = heady;
+
+            Snake[Snake.length] = snakecell(endx, endy);//增加一个蛇结点，位于尾部
+
+            createfood();//创建一个食物
+            score = score + sco;//加单位分数
+        }
+        else {
+            if (document.getElementById("bg" + headx + heady).style.backgroundColor == "red")//如果是蛇的某一部位
+            {
+                MoveFlag = "";//停止前进
+                document.all.level.disabled = "";
+                alert("你的得分是" + score);
+                location.reload();
+                return;
+            }
+            else {
+                for (var step = Snake.length - 1; step > 0; step--)//从最后一个蛇结点起把前一结点的x，y坐标赋给自身
+                {
+                    Snake[step].cellx = Snake[step - 1].cellx;
+                    Snake[step].celly = Snake[step - 1].celly;
+                }
+
+                Snake[0].cellx = headx;//将蛇头位置探前一步
+                Snake[0].celly = heady;
+            }
+        }
+        document.getElementById("bg" + endx + endy).style.backgroundColor = "silver";//恢复蛇尾处颜色
+    }
+
+    //显示这条蛇
+    function showsnake()
+    {
+        for (i = 0; i < Snake.length; i++)
+            document.getElementById("bg" + Snake[i].cellx + Snake[i].celly).style.backgroundColor = "red";
+    }
+
+    //操控蛇的运行
+    document.onkeydown = function (event) {
+        //arguments.callee.caller.arguments[0]:用于获取事件对象
+        //window.event:代表着事件对象的状态,只有在事件发生时生效。如鼠标、键盘等事件被触发时这个对象才存在
+        // event:window.event的省略式
+        var e = event || window.event || arguments.callee.caller.arguments[0];
+
+        if (e && (e.keyCode == '87' || e.keyCode=="38"))//按下W键↑
+            MoveFlag = "up";
+        if (e && (e.keyCode == '65' || e.keyCode=="37"))//按下A键←
+            MoveFlag = "left";
+        if (e && (e.keyCode == '83' || e.keyCode=="40"))//按下S键↓
+            MoveFlag = "down";
+        if (e && (e.keyCode == '68' ||e.keyCode=="39"))//按下D键 →
+            MoveFlag = "right";
+        if (e && e.keyCode == '27')//按下ESC
+        {
+            MoveFlag = "";
+            document.all.playnow.value = "开始";
+        }
+    };
+
+    //选择难度
+    function setlevel() {
+        Time = document.all.level.options[document.all.level.selectedIndex].value;
+        sco == 450 - Time;
+    }
+
+    //开始游戏
+    function play() {
+        document.all.level.disabled = "disabled";
+        if (document.all.playnow.value == "暂停") {
+            FlagTemp = MoveFlag;
+            MoveFlag = "";
+            document.all.playnow.value = "开始";
+        }
+        else {
+            MoveFlag = FlagTemp;
+            document.all.playnow.value = "暂停";
+        }
+        if (document.all.playnow.value == "重来")
+            window.refresh;
+        playInterval = setInterval("ManageSnake()", Time);   //开始
+    }
+
+</script>
+</html>

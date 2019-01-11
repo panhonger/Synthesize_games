@@ -1,0 +1,246 @@
+
+<html>
+<head>
+    <title> Othello </title>
+    <script type="text/javascript" src="/js/gobang/jquery.min.js"></script>
+    <script type="text/javascript" src="/js/gobang/jcanvas.min.js"></script>
+    <script type="text/javascript" src="/js/gobang/board.min.js"></script>
+    <script type="text/javascript" src="/js/gobang/ai2.min.js"></script>
+    <script>
+        var bd = new Board();
+        var br = new Brain();
+        var CW = 80; //CELL WIDTH
+        var OS = 40; //OFFSET
+        var cellColor = "#000";
+        var highlightCellColor = "red";
+        var humanSide,computerSide;
+        var lastStep = [0,0];
+
+        function logMsg(msg){
+            $('#log').html(msg);
+        }
+
+        function drawChess(cx,cy,player){
+            var size = CW*3/4;
+            var c = "darkorange";
+            if(player == BLACK){
+                c = "black";
+            }
+            else if(player == WHITE){
+                c = "white";
+            }
+            else{
+                size +=2;
+            }
+            $("canvas").drawEllipse({
+                fillStyle: c,
+                x: (cx-0.5)*CW+OS, y:(cy-0.5)*CW+OS,
+                width: size, height: size
+            });
+        }
+
+        function drawBoard(){
+            //draw lines
+            for(var x = 0; x <= BS; ++x){
+                $("canvas").drawLine({
+                    strokeStyle: cellColor,
+                    strokeWidth: 2,
+                    x1: x*CW+OS, y1: OS,
+                    x2: x*CW+OS, y2: BS*CW+OS,
+                });
+            }
+            for(var y = 0; y <= BS; ++y){
+                $("canvas").drawLine({
+                    strokeStyle: cellColor,
+                    strokeWidth: 2,
+                    x1: OS, y1: y*CW+OS,
+                    x2: BS*CW+OS, y2: y*CW+OS,
+                });
+            }
+
+            for(var x = 1; x <= BS; ++x){
+                for(var y = 1; y <= BS; ++y){
+                    drawChess(x,y,bd.getChess(x,y));
+                }
+            }
+
+            //highlight the last chess
+            if(lastStep[0]>0 && lastStep[1]>0){
+                $("canvas").drawRect({
+                    fillStyle: "red",
+                    x: (lastStep[0]-0.5)*CW+OS, y:(lastStep[1]-0.5)*CW+OS,
+                    width: CW/8,
+                    height: CW/8,
+                    fromCenter: true
+                });
+            }
+
+            //mark the putable chess
+            if(bd.getPlayer()==humanSide){
+                var steps = bd.getPutableList();
+                if(steps!=null && steps.length>0){
+                    for(var i=0;i<steps.length;++i){
+                        var step = steps[i];
+                        $("canvas").drawRect({
+                            fillStyle: "green",
+                            x: (step[0]-0.5)*CW+OS, y:(step[1]-0.5)*CW+OS,
+                            width: CW/8,
+                            height: CW/8,
+                            fromCenter: true
+                        });
+                    }
+                }
+            }
+
+            //show scores
+            showScore();
+        }
+
+        function drawCell(x,y,c){
+            $("canvas").drawLine({
+                strokeStyle: c,
+                strokeWidth: 2,
+                x1: (x-1)*CW+OS, y1: (y-1)*CW+OS,
+                x2: (x-1)*CW+OS, y2: y*CW+OS,
+                x3: x*CW+OS, y3: y*CW+OS,
+                x4: x*CW+OS, y4: (y-1)*CW+OS,
+                x5: (x-1)*CW+OS, y5: (y-1)*CW+OS
+            });
+        }
+
+        function showScore(){
+            var bw= bd.getChessCount();
+            $('#score').html("BLACK:"+bw[0]+"<br/>WHITE:"+bw[1]);
+        }
+
+        var lastCX=-1,lastCY=-1;
+        function highlightCell(cx,cy){
+            if(lastCX==cx && lastCY==cy){
+                return;
+            }
+            if(lastCX>=1 && lastCX<=BS && lastCX>=1 && lastCX<=BS){
+                drawCell(lastCX,lastCY,cellColor);
+            }
+            if(cx>=1 && cx<=BS && cy>=1 && cy<=BS){
+                drawCell(cx,cy,highlightCellColor);
+            }
+            lastCX=cx;
+            lastCY=cy;
+        }
+
+        $(function(){
+            drawBoard();
+        });
+
+        function newGame(){
+            var side = $("input[name='side']:checked").val();
+            if(side == "BLACK"){
+                humanSide = BLACK;
+                computerSide = WHITE;
+            }
+            else{
+                humanSide = WHITE;
+                computerSide = BLACK;
+            }
+            lastStep=[0,0];
+            bd.reset();
+            drawBoard();
+            turn();
+        }
+
+        function regret(){
+            do{
+                bd.undo();
+                bd.undo();
+            }while(!bd.canPutAnyChess());
+            lastStep=[0,0];
+            drawBoard();
+            turn();
+        }
+
+        function putChess(cx,cy){
+            if(cx>=1 && cx<=BS && cy>=1 && cy<=BS){
+                if(bd.canPutChess(cx,cy)){
+                    var player = bd.getPlayer();
+                    bd.putChess(cx,cy);
+                    var side = (player==BLACK)?"Black":"White";
+                    logMsg(side+" side put chess at ["+cx+","+cy+"]");
+                    lastStep[0]=cx;lastStep[1]=cy;
+                    drawBoard();
+                    window.setTimeout(turn,100);
+                }
+                else{
+                    logMsg("Illegal chess at "+cx+","+cy);
+                }
+            }
+        }
+
+        function turn(){
+            $("canvas").unbind();
+            if(bd.isGameOver()){
+                var bw = bd.getChessCount();
+                var winSide = 0;
+                if(bw[0]>bw[1]){
+                    winSide = BLACK;
+                }
+                else if(bw[0]<bw[1]){
+                    winSide = WHITE;
+                }
+                if(winSide == humanSide){
+                    window.alert("YOU WIN!");
+                }
+                else if(winSide == computerSide){
+                    window.alert("YOU LOSE!");
+                }
+                else{
+                    window.alert("DRAW!");
+                }
+
+                logMsg("Game Over!");
+                return;
+            }
+            if(bd.canPutAnyChess()){
+                if(bd.getPlayer() == humanSide){
+                    $("canvas").mousemove(function(event) {
+                        var position = $("canvas").position();
+                        var cx = Math.ceil((event.pageX - position.left - OS)/CW);
+                        var cy = Math.ceil((event.pageY - position.top - OS)/CW);
+                        if(cx>=1 && cx<=BS && cy>=1 && cy<=BS){
+                            highlightCell(cx,cy);
+                        }
+                    });
+                    $("canvas").click(function(event) {
+                        var position = $("canvas").position();
+                        var cx = Math.ceil((event.pageX - position.left - OS)/CW);
+                        var cy = Math.ceil((event.pageY - position.top - OS)/CW);
+                        putChess(cx,cy);
+                    });
+                }
+                else if(bd.getPlayer() == computerSide){
+                    var step = br.findBestStep(bd);
+                    if(step!=null){
+                        putChess(step[0],step[1]);
+                    }
+                }
+            }
+            else{
+                bd.skipPutChess();
+                turn();
+            }
+        }
+    </script>
+</head>
+<body>
+<div id="welcome">Welcome to play othello! Author:YIN SHAN</div>
+<div id="opera">
+    Choose Side:
+    <input type="radio" name="side" value="BLACK" checked/> BLACK
+    <input type="radio" name="side" value="WHITE"/> WHITE
+    <input type="button" onclick="newGame()" value="New Game"/>
+    <input type="button" onclick="regret()" value="Regret"/>
+</div>
+<canvas id="board" width="720" height="720" style="background:darkorange"></canvas>
+<div id="score" style="background:green;width:100px" ></div>
+<div id="log"></div>
+</body>
+</html>

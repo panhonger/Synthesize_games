@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>jQuery实现的拼图游戏效果</title>
+    <link type="text/css" href="/css/jigsaw/jspuzzle.css" rel="stylesheet" />
+    <script type="text/javascript" src="/js/jigsaw/jquery-1.5.2.min.js"></script>
+    <script type="text/javascript" src="/js/jigsaw/jquery.jspuzzle-beta.js"></script>
+    <script type="text/javascript">
+        $(function () {
+            $("#imageContainer").jspuzzle({ columns: 3, rows: 3, emptyColor: "DarkSlateBlue" });
+        });
+    </script>
+</head>
+<body style="background: #000; color: #fff; height:5000px;">
+<br />
+<span style="margin-left: 20px;">Original:</span>
+<div style="position: relative; top: 5px; left: 20px;">
+    <img id="truckOriginal" alt="photo" src="/imgs/jigsaw/truck.jpg" />
+</div>
+<br />
+<br />
+<span style="margin-left: 20px;">Puzzle: (click to move a block) </span>
+<div style="position: relative; top: 5px; left: 20px;">
+    <div id="imageContainer">
+        <img id="truck" alt="photo" src="/imgs/jigsaw/truck.jpg" />
+    </div>
+</div>
+</body>
+</html>
